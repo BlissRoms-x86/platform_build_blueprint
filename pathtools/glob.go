@@ -47,8 +47,17 @@ func Glob(pattern string, excludes []string, follow ShouldFollowSymlinks) (match
 func startGlob(fs FileSystem, pattern string, excludes []string,
 	follow ShouldFollowSymlinks) (matches, deps []string, err error) {
 
+	dir, file := filepath.Split(pattern)
+	exists, isdir, stat_err := fs.Exists(pattern)
 	if filepath.Base(pattern) == "**" {
 		return nil, nil, GlobLastRecursiveErr
+	} else if file == "[" && !isWild(dir) && exists && !isdir && stat_err == nil {
+		// Only toybox beyond r11 really does this
+		// This is a hotfix for a backported toybox on r11
+		// It seems that on future versions a lone "[" file don't trigger a glob error, either due to different handling of filepath.glob in future go versions, or bpglob changes
+		// I'm too coward to mess with globs now considering this function is used all over soong including jar packing, so just hotfix toybox backport here
+		matches = append(matches, pattern)
+		deps = append(deps, pattern)
 	} else {
 		matches, deps, err = glob(fs, pattern, false, follow)
 	}
